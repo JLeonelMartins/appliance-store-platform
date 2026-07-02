@@ -1,0 +1,43 @@
+services:
+
+  mysql:
+    image: mysql:8.4
+    container_name: appliance-mysql
+
+    restart: unless-stopped
+
+    ports:
+      - "3308:3306"
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+    command:
+      - --server-id=223344
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      - --binlog-expire-logs-seconds=864000
+
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - appliance-network
+
+volumes:
+  mysql-data:
+
+networks:
+  appliance-network:
+    name: appliance-network
