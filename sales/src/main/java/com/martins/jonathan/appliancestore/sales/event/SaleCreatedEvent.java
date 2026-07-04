@@ -7,6 +7,7 @@ public record SaleCreatedEvent(
         Long saleId,
         Long cartId,
         BigDecimal total,
-        LocalDateTime saleDate
+        LocalDateTime saleDate,
+        String customerEmail
 ) {
 }

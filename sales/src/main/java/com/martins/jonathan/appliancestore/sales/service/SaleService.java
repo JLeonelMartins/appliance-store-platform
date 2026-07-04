@@ -67,7 +67,8 @@ public class SaleService implements ISaleService {
                         savedSale.getId(),
                         savedSale.getCartId(),
                         savedSale.getTotal(),
-                        savedSale.getSaleDate()
+                        savedSale.getSaleDate(),
+                        request.customerEmail()
         );
 
         outboxEventService.save(event);
