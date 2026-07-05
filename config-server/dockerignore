@@ -1,0 +1,33 @@
+# Build output
+target/
+*.jar
+*.war
+
+# Maven wrapper files
+# These are ignored because the Dockerfile uses the official Maven image.
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+*.env
+
+# Git
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
