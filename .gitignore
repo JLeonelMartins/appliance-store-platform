@@ -41,6 +41,7 @@ application-secrets.yaml
 # INTELLIJ IDEA
 # =========================================================
 .idea/
+infrastructure/.idea/
 *.iml
 *.iws
 out/
