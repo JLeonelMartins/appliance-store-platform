@@ -77,6 +77,7 @@ Product Service       Cart Service
 - Kafka retries
 - Dead Letter Topic
 - Environment-based configuration with Spring Profiles
+- Postman collection for complete flow testing
 
 ---
 
@@ -99,6 +100,7 @@ Product Service       Cart Service
 - Docker Compose
 - Mailpit
 - Maven
+- Postman
 
 ---
 
@@ -107,11 +109,31 @@ Product Service       Cart Service
 This project uses two repositories:
 
 ```text
-appliance-store-platform  -> source code and Docker infrastructure
+appliance-store-platform  -> source code, Docker infrastructure, documentation and Postman collection
 appliance-store-config    -> centralized configuration files
 ```
 
 The Config Server reads configuration from the external configuration repository.
+
+---
+
+## Project Structure
+
+```text
+appliance-store-platform
+├── api-gateway
+├── cart-service
+├── config-server
+├── eureka-server
+├── infrastructure
+├── notification-service
+├── product-service
+├── sales-service
+├── postman
+│   ├── appliance-store-microservices.postman_collection.json
+│   └── appliance-store-local.postman_environment.json
+└── README.md
+```
 
 ---
 
@@ -428,10 +450,21 @@ This prevents the consumer from being blocked forever by a failing message.
 
 ## Example Sale Request
 
+Through the API Gateway:
+
 ```http
-POST /api/sales
+POST http://localhost:8088/sales/api/sales
 Content-Type: application/json
 ```
+
+Directly to Sales Service:
+
+```http
+POST http://localhost:8083/api/sales
+Content-Type: application/json
+```
+
+Request body:
 
 ```json
 {
@@ -477,6 +510,107 @@ phpMyAdmin:
 
 ```text
 http://localhost:8085
+```
+
+---
+
+## Postman Collection
+
+This project includes a Postman collection to test the main microservices flow through the API Gateway.
+
+Location:
+
+```text
+postman/appliance-store-microservices.postman_collection.json
+postman/appliance-store-local.postman_environment.json
+```
+
+### Importing the Collection
+
+To use the Postman collection:
+
+```text
+1. Open Postman
+2. Import appliance-store-microservices.postman_collection.json
+3. Import appliance-store-local.postman_environment.json
+4. Select the environment: Appliance Store - Local
+5. Run the folder: 04 - Complete Flow
+```
+
+### Environment Variables
+
+The local environment contains the following variables:
+
+```text
+gatewayUrl       -> http://localhost:8088
+productUrl       -> http://localhost:8081
+cartUrl          -> http://localhost:8082
+salesUrl         -> http://localhost:8083
+productId        -> generated during the complete flow
+cartId           -> generated during the complete flow
+cartItemId       -> generated during the complete flow
+saleId           -> generated during the complete flow
+customerEmail    -> customer@example.com
+```
+
+The ID variables can be empty before running the collection. They are automatically populated by Postman test scripts during the complete flow.
+
+### Main Complete Flow
+
+The folder `04 - Complete Flow` runs the complete purchase flow in order:
+
+```text
+1. Create Product
+2. Create Cart
+3. Add Item to Cart
+4. Create Sale
+5. Check Sale
+```
+
+This validates that the main business flow works correctly through the API Gateway.
+
+### Complete Flow Endpoints
+
+```text
+POST {{gatewayUrl}}/product/api/product
+POST {{gatewayUrl}}/cart/api/cart
+POST {{gatewayUrl}}/cart/api/cart/{{cartId}}/items
+POST {{gatewayUrl}}/sales/api/sales
+GET  {{gatewayUrl}}/sales/api/sales/{{saleId}}
+```
+
+### What the Collection Validates
+
+The Postman collection validates:
+
+```text
+Product Service CRUD operations
+Cart Service operations
+Cart item management
+Sales Service operations
+API Gateway routing
+Complete purchase flow
+Basic success scenarios
+Basic exception scenarios
+```
+
+The complete flow also triggers the asynchronous notification process implemented in the backend through the Transactional Outbox pattern, Debezium, Kafka and the Notification Service.
+
+After running the complete flow, the following tables can be checked:
+
+```text
+appliance_product_db.products
+appliance_cart_db.carts
+appliance_cart_db.cart_items
+appliance_sales_db.sales
+appliance_sales_db.outbox_event
+appliance_notification_db.sale_notifications
+```
+
+The email notification can be checked in Mailpit:
+
+```text
+http://localhost:8025
 ```
 
 ---
@@ -577,6 +711,7 @@ Idempotent consumers
 Email notification processing
 Retries and Dead Letter Topics
 Environment-specific configuration
+Postman automated flow testing
 ```
 
 ---
@@ -585,7 +720,7 @@ Environment-specific configuration
 
 This project demonstrates how to build a backend system that is closer to a real-world microservices architecture.
 
-It includes synchronous communication with Feign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, gateway routing, resilience patterns, local infrastructure with Docker, and event-driven processing with Debezium and the Transactional Outbox pattern.
+It includes synchronous communication with Feign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, gateway routing, resilience patterns, local infrastructure with Docker, event-driven processing with Debezium and the Transactional Outbox pattern, and a Postman collection to validate the complete business flow.
 
 ---
 
