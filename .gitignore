@@ -1,25 +1,88 @@
-# Compiled class file
+# =========================================================
+# JAVA / MAVEN
+# =========================================================
+target/
 *.class
-
-# Log file
-*.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
 *.jar
 *.war
 *.nar
 *.ear
+
+# Maven wrapper files are usually committed, so DO NOT ignore:
+# mvnw
+# mvnw.cmd
+# .mvn/wrapper/maven-wrapper.properties
+
+
+# =========================================================
+# LOGS
+# =========================================================
+*.log
+logs/
+
+
+# =========================================================
+# ENVIRONMENT / SECRETS
+# =========================================================
+.env
+*.env
+infrastructure/.env
+
+# Local secret/property overrides
+application-local.yml
+application-local.yaml
+application-secret.yml
+application-secret.yaml
+application-secrets.yml
+application-secrets.yaml
+
+
+# =========================================================
+# INTELLIJ IDEA
+# =========================================================
+.idea/
+*.iml
+*.iws
+out/
+
+
+# =========================================================
+# ECLIPSE / STS
+# =========================================================
+.project
+.classpath
+.settings/
+
+
+# =========================================================
+# VS CODE
+# =========================================================
+.vscode/
+
+
+# =========================================================
+# OPERATING SYSTEM FILES
+# =========================================================
+.DS_Store
+Thumbs.db
+
+
+# =========================================================
+# PACKAGE / ARCHIVES
+# =========================================================
 *.zip
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+
+# =========================================================
+# JVM CRASH LOGS
+# =========================================================
 hs_err_pid*
 replay_pid*
-infrastructure/.env
+
+
+# =========================================================
+# DOCKER LOCAL DATA
+# =========================================================
+*.pid
