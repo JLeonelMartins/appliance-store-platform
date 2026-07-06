@@ -1,8 +1,5 @@
 services:
 
-  # =========================================================
-  # MYSQL 8.4
-  # =========================================================
   mysql:
     image: mysql:8.4
     container_name: appliance-mysql
@@ -14,6 +11,10 @@ services:
 
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      APPLIANCE_DB_USERNAME: ${APPLIANCE_DB_USERNAME}
+      APPLIANCE_DB_PASSWORD: ${APPLIANCE_DB_PASSWORD}
+      DEBEZIUM_DB_USER: ${DEBEZIUM_DB_USER}
+      DEBEZIUM_DB_PASSWORD: ${DEBEZIUM_DB_PASSWORD}
 
     command:
       - --server-id=223344
@@ -24,13 +25,10 @@ services:
 
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"
-        ]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -40,9 +38,6 @@ services:
       - appliance-network
 
 
-  # =========================================================
-  # PHPMYADMIN
-  # =========================================================
   phpmyadmin:
     image: phpmyadmin:5.2.3
     container_name: appliance-phpmyadmin
@@ -63,9 +58,6 @@ services:
       - appliance-network
 
 
-  # =========================================================
-  # APACHE KAFKA - KRAFT
-  # =========================================================
   kafka:
     image: apache/kafka:4.1.2
     container_name: appliance-kafka
@@ -77,7 +69,6 @@ services:
 
     environment:
       KAFKA_NODE_ID: 1
-
       KAFKA_PROCESS_ROLES: "broker,controller"
 
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: >
@@ -85,9 +76,6 @@ services:
         PLAINTEXT:PLAINTEXT,
         PLAINTEXT_HOST:PLAINTEXT
 
-      # Acceso interno y externo:
-      # - localhost:9092 desde IntelliJ/Windows
-      # - kafka:19092 desde otros contenedores
       KAFKA_LISTENERS: >
         CONTROLLER://:29093,
         PLAINTEXT_HOST://:9092,
@@ -99,13 +87,11 @@ services:
 
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
       KAFKA_CONTROLLER_QUORUM_VOTERS: >
         1@kafka:29093
 
       CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
 
-      # Configuración local con un solo broker
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
@@ -121,11 +107,7 @@ services:
       - kafka-data:/var/lib/kafka/data
 
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"
-        ]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list > /dev/null 2>&1"]
       interval: 10s
       timeout: 10s
       retries: 10
@@ -135,9 +117,6 @@ services:
       - appliance-network
 
 
-  # =========================================================
-  # KAFKA CONNECT + DEBEZIUM
-  # =========================================================
   kafka-connect:
     image: quay.io/debezium/connect:3.5.2.Final
     container_name: appliance-kafka-connect
@@ -145,12 +124,10 @@ services:
     restart: unless-stopped
 
     ports:
-      # API REST de Kafka Connect
       - "8086:8083"
 
     environment:
       BOOTSTRAP_SERVERS: kafka:19092
-
       GROUP_ID: appliance-connect-cluster
 
       CONFIG_STORAGE_TOPIC: appliance_connect_configs
@@ -173,7 +150,6 @@ services:
       REST_HOST_NAME: "0.0.0.0"
       ADVERTISED_HOST_NAME: kafka-connect
 
-      # Permite usar variables del entorno en el JSON del connector
       CONNECT_CONFIG_PROVIDERS: env
       CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
       CONNECT_CONFIG_PROVIDERS_ENV_PARAM_ALLOWLIST_PATTERN: "^DEBEZIUM_DB_.*"
@@ -187,7 +163,6 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-
       kafka:
         condition: service_healthy
 
@@ -195,9 +170,6 @@ services:
       - appliance-network
 
 
-  # =========================================================
-  # MAILPIT - SERVIDOR SMTP LOCAL
-  # =========================================================
   mailpit:
     image: axllent/mailpit:v1.30.3
     container_name: appliance-mailpit
@@ -205,10 +177,7 @@ services:
     restart: unless-stopped
 
     ports:
-      # Interfaz web para visualizar los correos
       - "8025:8025"
-
-      # Puerto SMTP al que se conecta Notification
       - "1025:1025"
 
     environment:
@@ -222,18 +191,217 @@ services:
       - appliance-network
 
 
-# =========================================================
-# VOLÚMENES PERSISTENTES
-# =========================================================
+  config-server:
+    build:
+      context: ../config-server
+      dockerfile: Dockerfile
+
+    container_name: appliance-config-server
+    restart: unless-stopped
+
+    ports:
+      - "8888:8888"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_SERVER_GIT_URI: ${CONFIG_REPO_URI}
+      SPRING_CLOUD_CONFIG_SERVER_GIT_DEFAULT_LABEL: ${CONFIG_REPO_BRANCH}
+
+    networks:
+      - appliance-network
+
+
+  eureka-server:
+    build:
+      context: ../eureka-server
+      dockerfile: Dockerfile
+
+    container_name: appliance-eureka-server
+    restart: unless-stopped
+
+    ports:
+      - "8761:8761"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+
+    depends_on:
+      - config-server
+
+    networks:
+      - appliance-network
+
+
+  product-service:
+    build:
+      context: ../product-service
+      dockerfile: Dockerfile
+
+    container_name: appliance-product-service
+    restart: unless-stopped
+
+    ports:
+      - "8081:8081"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      APPLIANCE_DB_USERNAME: ${APPLIANCE_DB_USERNAME}
+      APPLIANCE_DB_PASSWORD: ${APPLIANCE_DB_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - appliance-network
+
+
+  cart-service:
+    build:
+      context: ../cart-service
+      dockerfile: Dockerfile
+
+    container_name: appliance-cart-service
+    restart: unless-stopped
+
+    ports:
+      - "8082:8082"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      APPLIANCE_DB_USERNAME: ${APPLIANCE_DB_USERNAME}
+      APPLIANCE_DB_PASSWORD: ${APPLIANCE_DB_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+      product-service:
+        condition: service_started
+
+    networks:
+      - appliance-network
+
+
+  sales-service:
+    build:
+      context: ../sales-service
+      dockerfile: Dockerfile
+
+    container_name: appliance-sales-service
+    restart: unless-stopped
+
+    ports:
+      - "8083:8083"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      APPLIANCE_DB_USERNAME: ${APPLIANCE_DB_USERNAME}
+      APPLIANCE_DB_PASSWORD: ${APPLIANCE_DB_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+      cart-service:
+        condition: service_started
+
+    networks:
+      - appliance-network
+
+
+  notification-service:
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+
+    container_name: appliance-notification-service
+    restart: unless-stopped
+
+    ports:
+      - "8084:8084"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      APPLIANCE_DB_USERNAME: ${APPLIANCE_DB_USERNAME}
+      APPLIANCE_DB_PASSWORD: ${APPLIANCE_DB_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+
+    networks:
+      - appliance-network
+
+
+  api-gateway:
+    build:
+      context: ../api-gateway
+      dockerfile: Dockerfile
+
+    container_name: appliance-api-gateway
+    restart: unless-stopped
+
+    ports:
+      - "8088:8088"
+
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+
+    depends_on:
+      config-server:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+      product-service:
+        condition: service_started
+      cart-service:
+        condition: service_started
+      sales-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+    networks:
+      - appliance-network
+
+
 volumes:
   mysql-data:
   kafka-data:
   mailpit-data:
 
 
-# =========================================================
-# RED INTERNA DE DOCKER
-# =========================================================
 networks:
   appliance-network:
     name: appliance-network
