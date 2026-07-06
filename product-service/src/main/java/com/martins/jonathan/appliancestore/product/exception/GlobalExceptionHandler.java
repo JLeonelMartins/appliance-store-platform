@@ -32,10 +32,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ValidationErrorResponse> handleValidationException(
-            MethodArgumentNotValidException exception,
-            HttpServletRequest request
-    ) {
+    public ResponseEntity<ValidationErrorResponse> handleValidationException(MethodArgumentNotValidException exception, HttpServletRequest request) {
 
         Map<String, String> validationErrors = new LinkedHashMap<>();
 
@@ -58,6 +55,23 @@ public class GlobalExceptionHandler{
                         validationErrors,
                         request.getRequestURI()
                 );
+
+        return ResponseEntity
+                .status(status)
+                .body(errorResponse);
+    }
+
+    @ExceptionHandler(ProductCodeAlreadyExistsException.class)
+    public ResponseEntity<ApiErrorResponse> handleProductCodeAlreadyExists(ProductCodeAlreadyExistsException exception, HttpServletRequest request) {
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ApiErrorResponse errorResponse = new ApiErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                exception.getMessage(),
+                request.getRequestURI()
+        );
 
         return ResponseEntity
                 .status(status)

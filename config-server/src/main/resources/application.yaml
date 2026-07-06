@@ -6,14 +6,14 @@ spring:
     config:
       server:
         git:
-          uri: "${CONFIG_REPOSITORY_URL:https://github.com/JLeonelMartins/appliance-store-config.git}"
-          default-label: main
+          uri: ${CONFIG_REPO_URI:https://github.com/JLeonelMartins/appliance-store-config.git}
+          default-label: ${CONFIG_REPO_BRANCH:main}
           clone-on-start: true
 
-          # Evita consultar GitHub en cada petición.
+          # Avoid checking GitHub on every request.
           refresh-rate: 30
 
-          # Tiempo máximo para conectarse al repositorio Git, en segundos.
+          # Maximum time to connect to the Git repository, in seconds.
           timeout: 15
 
 server:
