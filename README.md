@@ -49,7 +49,7 @@ Product Service       Cart Service
 | Config Server | 8888 | Centralized configuration using Spring Cloud Config |
 | Eureka Server | 8761 | Service discovery |
 | API Gateway | 8088 | Single entry point for client requests |
-| Product Service | 8081 | Product CRUD and stock information |
+| Product Service | 8081 | Product CRUD and product information |
 | Cart Service | 8082 | Shopping cart management |
 | Sales Service | 8083 | Sale creation and outbox event generation |
 | Notification Service | 8084 | Kafka consumer and email notification delivery |
@@ -77,6 +77,7 @@ Product Service       Cart Service
 - Kafka retries
 - Dead Letter Topic
 - Environment-based configuration with Spring Profiles
+- Docker Compose full platform setup
 - Postman collection for complete flow testing
 
 ---
@@ -126,6 +127,12 @@ appliance-store-platform
 ├── config-server
 ├── eureka-server
 ├── infrastructure
+│   ├── compose.yaml
+│   ├── connectors
+│   │   └── sales-outbox-connector.json
+│   └── mysql
+│       └── init
+│           └── 01-init.sh
 ├── notification-service
 ├── product-service
 ├── sales-service
@@ -153,13 +160,13 @@ phpMyAdmin
 Apache Kafka
 Kafka Connect with Debezium
 Mailpit
-```
-
-Start the infrastructure:
-
-```bash
-cd infrastructure
-docker compose up -d
+Config Server
+Eureka Server
+API Gateway
+Product Service
+Cart Service
+Sales Service
+Notification Service
 ```
 
 Useful URLs:
@@ -180,50 +187,68 @@ API Gateway:     http://localhost:8088
 The project uses Spring Profiles to separate environments.
 
 ```text
-dev  -> local development
-prod -> production-like configuration
+dev     -> local development from IntelliJ
+docker  -> complete Docker Compose environment
+prod    -> production-like configuration
 ```
 
-Each service has common, development and production configuration files in the configuration repository:
+Each service has common, development, docker and production configuration files in the configuration repository.
+
+Example:
 
 ```text
 product.yaml
 product-dev.yaml
+product-docker.yaml
 product-prod.yaml
 
 cart.yaml
 cart-dev.yaml
+cart-docker.yaml
 cart-prod.yaml
 
 sales.yaml
 sales-dev.yaml
+sales-docker.yaml
 sales-prod.yaml
 
 notification.yaml
 notification-dev.yaml
+notification-docker.yaml
 notification-prod.yaml
+
+api-gateway.yaml
+api-gateway-docker.yaml
 ```
 
 ### Development Profile
 
-The `dev` profile is used for local development.
+The `dev` profile is used when running services locally from IntelliJ.
 
 It uses:
 
 ```text
-Local Docker MySQL
-Local Kafka
-Mailpit
+Local Docker MySQL exposed to the host
+Local Kafka exposed to the host
+Mailpit exposed to the host
 Hibernate ddl-auto update
 SQL logs enabled
 ```
 
-Example environment variables:
+### Docker Profile
+
+The `docker` profile is used when running the full system with Docker Compose.
+
+Inside Docker, services do not communicate through `localhost`. They communicate through Docker service names.
+
+Examples:
 
 ```text
-SPRING_PROFILES_ACTIVE=dev
-APPLIANCE_DB_USERNAME=appliance_app
-APPLIANCE_DB_PASSWORD=ApplianceApp2026
+mysql:3306
+kafka:19092
+mailpit:1025
+config-server:8888
+eureka-server:8761
 ```
 
 ### Production Profile
@@ -241,19 +266,13 @@ Hibernate ddl-auto validate
 SQL logs disabled
 ```
 
-Example:
-
-```text
-SPRING_PROFILES_ACTIVE=prod
-```
-
 No real credentials are stored in the repository.
 
 ---
 
-## Local Startup Order
+## Local Startup Order With IntelliJ
 
-Recommended startup order:
+When running services manually from IntelliJ, use this startup order:
 
 ```text
 1. Docker infrastructure
@@ -266,7 +285,280 @@ Recommended startup order:
 8. API Gateway
 ```
 
-Each main service should run with the `dev` profile when working locally.
+Each main service should run with the `dev` profile when working locally from IntelliJ.
+
+Example environment variables:
+
+```text
+SPRING_PROFILES_ACTIVE=dev
+APPLIANCE_DB_USERNAME=appliance_app
+APPLIANCE_DB_PASSWORD=your-local-password
+```
+
+---
+
+## Running With Docker Compose
+
+The complete platform can be started using Docker Compose.
+
+In this mode, all services run inside Docker:
+
+```text
+Config Server
+Eureka Server
+API Gateway
+Product Service
+Cart Service
+Sales Service
+Notification Service
+MySQL
+phpMyAdmin
+Kafka
+Kafka Connect
+Mailpit
+```
+
+### 1. Create the `.env` file
+
+Inside:
+
+```text
+appliance-store-platform/infrastructure
+```
+
+Create a `.env` file.
+
+Example:
+
+```env
+MYSQL_ROOT_PASSWORD=your-root-password
+
+APPLIANCE_DB_USERNAME=appliance_app
+APPLIANCE_DB_PASSWORD=your-app-password
+
+DEBEZIUM_DB_USER=debezium
+DEBEZIUM_DB_PASSWORD=your-debezium-password
+
+CONFIG_REPO_URI=https://github.com/your-user/appliance-store-config
+CONFIG_REPO_BRANCH=main
+```
+
+The `.env` file must not be committed to the repository.
+
+### 2. Start the complete platform
+
+From CMD, go to:
+
+```cmd
+cd appliance-store-platform\infrastructure
+```
+
+Then run:
+
+```cmd
+docker compose up -d --build
+```
+
+To check the containers:
+
+```cmd
+docker compose ps
+```
+
+Expected result:
+
+```text
+appliance-config-server         Up
+appliance-eureka-server         Up
+appliance-api-gateway           Up
+appliance-product-service       Up
+appliance-cart-service          Up
+appliance-sales-service         Up
+appliance-notification-service  Up
+appliance-mysql                 Up healthy
+appliance-kafka                 Up healthy
+appliance-kafka-connect         Up
+appliance-mailpit               Up healthy
+appliance-phpmyadmin            Up
+```
+
+### 3. Register the Debezium connector
+
+The Debezium connector file is located at:
+
+```text
+infrastructure/connectors/sales-outbox-connector.json
+```
+
+From CMD, inside `infrastructure`, run:
+
+```cmd
+powershell -Command "Invoke-RestMethod -Method Post -Uri 'http://localhost:8086/connectors' -ContentType 'application/json' -InFile 'connectors\sales-outbox-connector.json'"
+```
+
+If the connector already exists, this is not an error.
+
+To check the connector list:
+
+```cmd
+powershell -Command "Invoke-RestMethod -Uri 'http://localhost:8086/connectors'"
+```
+
+To check the connector status:
+
+```cmd
+powershell -Command "Invoke-RestMethod -Uri 'http://localhost:8086/connectors/sales-outbox-connector/status'"
+```
+
+Expected state:
+
+```text
+connector.state = RUNNING
+tasks.state     = RUNNING
+```
+
+### 4. Check Eureka
+
+Open:
+
+```text
+http://localhost:8761
+```
+
+Expected registered services:
+
+```text
+API-GATEWAY
+PRODUCT-SERVICE
+CART-SERVICE
+SALES-SERVICE
+NOTIFICATION-SERVICE
+```
+
+### 5. Run the Postman complete flow
+
+Import the Postman collection and environment located in:
+
+```text
+postman/appliance-store-microservices.postman_collection.json
+postman/appliance-store-local.postman_environment.json
+```
+
+Select:
+
+```text
+Appliance Store - Local
+```
+
+Run the folder:
+
+```text
+04 - Complete Flow
+```
+
+Expected result:
+
+```text
+Create Product  -> 201
+Create Cart     -> 201
+Add Item        -> 200
+Create Sale     -> 201
+Check Sale      -> 200
+```
+
+### 6. Validate the database flow
+
+Open phpMyAdmin:
+
+```text
+http://localhost:8085
+```
+
+Run the following checks.
+
+Latest product:
+
+```sql
+USE appliance_product_db;
+
+SELECT *
+FROM products
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Latest cart:
+
+```sql
+USE appliance_cart_db;
+
+SELECT *
+FROM carts
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Latest cart item:
+
+```sql
+USE appliance_cart_db;
+
+SELECT *
+FROM cart_items
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Latest sale:
+
+```sql
+USE appliance_sales_db;
+
+SELECT *
+FROM sales
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Latest outbox event:
+
+```sql
+USE appliance_sales_db;
+
+SELECT *
+FROM outbox_event
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Latest sale notification:
+
+```sql
+USE appliance_notification_db;
+
+SELECT *
+FROM sale_notifications
+ORDER BY id DESC
+LIMIT 1;
+```
+
+Expected notification state:
+
+```text
+status = SENT
+sent_at != NULL
+last_error = NULL
+```
+
+### 7. Check the email
+
+Open Mailpit:
+
+```text
+http://localhost:8025
+```
+
+The sale notification email should be available in the Mailpit inbox.
 
 ---
 
@@ -281,11 +573,19 @@ appliance_sales_db
 appliance_notification_db
 ```
 
-The application user used locally is:
+The MySQL initialization script is located at:
 
 ```text
-APPLIANCE_DB_USERNAME=appliance_app
-APPLIANCE_DB_PASSWORD=ApplianceApp2026
+infrastructure/mysql/init/01-init.sh
+```
+
+It creates:
+
+```text
+Required databases
+Application database user
+Debezium database user
+Required privileges
 ```
 
 The Debezium user is used by Kafka Connect to read the MySQL binlog.
@@ -363,6 +663,24 @@ Dead Letter Topic:
 sale-created.DLT
 ```
 
+Debezium connector:
+
+```text
+infrastructure/connectors/sales-outbox-connector.json
+```
+
+The connector reads from:
+
+```text
+appliance_sales_db.outbox_event
+```
+
+And routes events to:
+
+```text
+sale-created
+```
+
 ---
 
 ## Notification Flow
@@ -408,7 +726,7 @@ If the event was already successfully processed, the Notification Service skips 
 
 ## Email Delivery
 
-In development, the project uses Mailpit to capture emails locally.
+In development and Docker profile, the project uses Mailpit to capture emails locally.
 
 Mailpit inbox:
 
@@ -626,6 +944,17 @@ http://localhost:8888/product/dev
 http://localhost:8888/cart/dev
 http://localhost:8888/sales/dev
 http://localhost:8888/notification/dev
+http://localhost:8888/api-gateway/dev
+```
+
+Docker profile:
+
+```text
+http://localhost:8888/product/docker
+http://localhost:8888/cart/docker
+http://localhost:8888/sales/docker
+http://localhost:8888/notification/docker
+http://localhost:8888/api-gateway/docker
 ```
 
 Production profile:
@@ -635,30 +964,8 @@ http://localhost:8888/product/prod
 http://localhost:8888/cart/prod
 http://localhost:8888/sales/prod
 http://localhost:8888/notification/prod
+http://localhost:8888/api-gateway/prod
 ```
-
----
-
-## Running With IntelliJ IDEA
-
-Recommended local environment variables for each main service:
-
-```text
-SPRING_PROFILES_ACTIVE=dev
-APPLIANCE_DB_USERNAME=appliance_app
-APPLIANCE_DB_PASSWORD=ApplianceApp2026
-```
-
-Services that should run with these variables:
-
-```text
-Product Service
-Cart Service
-Sales Service
-Notification Service
-```
-
-The infrastructure services should be started first using Docker Compose.
 
 ---
 
@@ -692,6 +999,64 @@ NOTIFICATION_EMAIL_FROM=email@gmail.com
 
 ---
 
+## Useful Docker Commands
+
+From CMD, inside:
+
+```text
+appliance-store-platform\infrastructure
+```
+
+Start the platform:
+
+```cmd
+docker compose up -d --build
+```
+
+Stop the platform:
+
+```cmd
+docker compose down
+```
+
+Stop and remove volumes:
+
+```cmd
+docker compose down -v
+```
+
+Check running containers:
+
+```cmd
+docker compose ps
+```
+
+Check logs:
+
+```cmd
+docker compose logs --tail=100 config-server
+docker compose logs --tail=100 eureka-server
+docker compose logs --tail=100 api-gateway
+docker compose logs --tail=100 product-service
+docker compose logs --tail=100 cart-service
+docker compose logs --tail=100 sales-service
+docker compose logs --tail=100 notification-service
+```
+
+Register Debezium connector:
+
+```cmd
+powershell -Command "Invoke-RestMethod -Method Post -Uri 'http://localhost:8086/connectors' -ContentType 'application/json' -InFile 'connectors\sales-outbox-connector.json'"
+```
+
+Check Debezium connector:
+
+```cmd
+powershell -Command "Invoke-RestMethod -Uri 'http://localhost:8086/connectors/sales-outbox-connector/status'"
+```
+
+---
+
 ## Key Learning Goals
 
 This project was built to practice:
@@ -711,6 +1076,7 @@ Idempotent consumers
 Email notification processing
 Retries and Dead Letter Topics
 Environment-specific configuration
+Dockerized microservices
 Postman automated flow testing
 ```
 
@@ -720,7 +1086,7 @@ Postman automated flow testing
 
 This project demonstrates how to build a backend system that is closer to a real-world microservices architecture.
 
-It includes synchronous communication with Feign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, gateway routing, resilience patterns, local infrastructure with Docker, event-driven processing with Debezium and the Transactional Outbox pattern, and a Postman collection to validate the complete business flow.
+It includes synchronous communication with Feign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, gateway routing, resilience patterns, local infrastructure with Docker, event-driven processing with Debezium and the Transactional Outbox pattern, email delivery through Mailpit or SMTP, and a Postman collection to validate the complete business flow.
 
 ---
 
