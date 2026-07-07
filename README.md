@@ -6,6 +6,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-blue)
 ![Kafka](https://img.shields.io/badge/Kafka-Event%20Driven-black)
 ![Debezium](https://img.shields.io/badge/Debezium-CDC-purple)
+![React](https://img.shields.io/badge/React-Frontend-blue)
 ![MySQL](https://img.shields.io/badge/MySQL-8.4-lightblue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -13,7 +14,9 @@ Microservices-based backend platform for an online appliance store built with **
 
 This project simulates a real-world backend architecture where products can be managed, shopping carts can be created, sales can be completed, and sale notifications are processed asynchronously through Kafka using the **Transactional Outbox pattern** and **Change Data Capture with Debezium**.
 
-The platform demonstrates backend concepts commonly used in distributed systems:
+The platform also includes a minimal **React + Vite frontend client** to validate the complete purchase flow through the API Gateway.
+
+The project demonstrates backend concepts commonly used in distributed systems:
 
 - Service Discovery with Eureka
 - API Gateway with Spring Cloud Gateway
@@ -26,6 +29,7 @@ The platform demonstrates backend concepts commonly used in distributed systems:
 - Idempotent Kafka consumer
 - Retry and Dead Letter Topic
 - Docker Compose infrastructure
+- Minimal React frontend for end-to-end flow testing
 - Postman collection for complete flow testing
 
 ---
@@ -34,19 +38,33 @@ The platform demonstrates backend concepts commonly used in distributed systems:
 
 - [Architecture Overview](#architecture-overview)
 - [Repositories](#repositories)
-- [Microservices](#microservices)
+- [Services](#services)
+- [Main Features](#main-features)
 - [Technologies](#technologies)
 - [Project Structure](#project-structure)
 - [Quick Start](#quick-start)
 - [Running With Docker Compose](#running-with-docker-compose)
+- [Frontend Client](#frontend-client)
+- [Register Debezium Connector](#register-debezium-connector)
 - [Postman Testing](#postman-testing)
+- [Validate Database Flow](#validate-database-flow)
+- [Check Email Notification](#check-email-notification)
+- [Database Setup](#database-setup)
 - [Event-Driven Sale Flow](#event-driven-sale-flow)
 - [Transactional Outbox](#transactional-outbox)
 - [Kafka and Debezium](#kafka-and-debezium)
 - [Notification Flow](#notification-flow)
+- [Idempotency](#idempotency)
+- [Email Delivery](#email-delivery)
+- [Retry and Dead Letter Topic](#retry-and-dead-letter-topic)
+- [Example Sale Request](#example-sale-request)
+- [Config Server Endpoints](#config-server-endpoints)
 - [Environment Profiles](#environment-profiles)
+- [Local Startup Order With IntelliJ](#local-startup-order-with-intellij)
+- [Production-Like Configuration](#production-like-configuration)
 - [Useful URLs](#useful-urls)
 - [Useful Docker Commands](#useful-docker-commands)
+- [Key Learning Goals](#key-learning-goals)
 - [What This Project Demonstrates](#what-this-project-demonstrates)
 - [Author](#author)
 
@@ -55,14 +73,17 @@ The platform demonstrates backend concepts commonly used in distributed systems:
 ## Architecture Overview
 
 ```text
-Client / Postman
-      |
-      v
+Browser
+   |
+   v
+React + Vite Frontend
+   |
+   v
 API Gateway
-      |
-      +-----------------------------+
-      |                             |
-      v                             v
+   |
+   +-----------------------------+
+   |                             |
+   v                             v
 Product Service               Cart Service
                                     |
                                     v
@@ -92,7 +113,7 @@ This platform uses two repositories:
 
 | Repository | Purpose |
 |---|---|
-| `appliance-store-platform` | Source code, microservices, Docker infrastructure, documentation and Postman collection |
+| `appliance-store-platform` | Source code, microservices, frontend client, Docker infrastructure, documentation and Postman collection |
 | `appliance-store-config` | Centralized configuration files consumed by Spring Cloud Config Server |
 
 Configuration repository:
@@ -105,10 +126,11 @@ The Config Server reads externalized configuration from the configuration reposi
 
 ---
 
-## Microservices
+## Services
 
 | Service | Port | Responsibility |
 |---|---:|---|
+| Frontend Client | 5173 | Minimal React client to test the complete purchase flow |
 | Config Server | 8888 | Centralized configuration using Spring Cloud Config |
 | Eureka Server | 8761 | Service discovery |
 | API Gateway | 8088 | Single entry point for external clients |
@@ -141,6 +163,7 @@ The Config Server reads externalized configuration from the configuration reposi
 - Dead Letter Topic
 - Environment-based configuration with Spring Profiles
 - Docker Compose full platform setup
+- Minimal React + Vite frontend client
 - Postman collection for complete business flow testing
 
 ---
@@ -164,6 +187,9 @@ The Config Server reads externalized configuration from the configuration reposi
 - Docker Compose
 - Mailpit
 - Maven
+- React
+- Vite
+- JavaScript
 - Postman
 
 ---
@@ -176,6 +202,11 @@ appliance-store-platform
 ├── cart-service
 ├── config-server
 ├── eureka-server
+├── frontend
+│   ├── public
+│   ├── src
+│   ├── package.json
+│   └── vite.config.js
 ├── infrastructure
 │   ├── compose.yaml
 │   ├── connectors
@@ -229,21 +260,34 @@ CONFIG_REPO_BRANCH=main
 
 The `.env` file must not be committed to the repository.
 
-### 3. Start the platform
+### 3. Start the backend platform
 
 ```cmd
 docker compose up -d --build
 ```
 
-### 4. Check running containers
+### 4. Register the Debezium connector
+
+From CMD, inside the `infrastructure` folder:
 
 ```cmd
-docker compose ps
+powershell -Command "Invoke-RestMethod -Method Post -Uri 'http://localhost:8086/connectors' -ContentType 'application/json' -InFile 'connectors\sales-outbox-connector.json'"
 ```
 
-### 5. Open useful URLs
+### 5. Start the frontend
+
+Open another terminal:
+
+```cmd
+cd appliance-store-platform\frontend
+npm install
+npm run dev
+```
+
+### 6. Open the application
 
 ```text
+Frontend:        http://localhost:5173
 API Gateway:     http://localhost:8088
 Eureka:          http://localhost:8761
 Config Server:   http://localhost:8888
@@ -256,9 +300,9 @@ Kafka Connect:   http://localhost:8086
 
 ## Running With Docker Compose
 
-The complete platform can be started using Docker Compose.
+The backend platform can be started using Docker Compose.
 
-In this mode, all services run inside Docker:
+In this mode, the following services run inside Docker:
 
 ```text
 Config Server
@@ -275,13 +319,15 @@ Kafka Connect
 Mailpit
 ```
 
+The React frontend runs locally with Vite on port `5173`.
+
 ### 1. Go to the infrastructure folder
 
 ```cmd
 cd appliance-store-platform\infrastructure
 ```
 
-### 2. Start the complete platform
+### 2. Start the complete backend platform
 
 ```cmd
 docker compose up -d --build
@@ -309,6 +355,85 @@ appliance-kafka-connect          Up
 appliance-mailpit                Up healthy
 appliance-phpmyadmin             Up
 ```
+
+---
+
+## Frontend Client
+
+The project includes a minimal **React + Vite frontend** to test the complete purchase flow visually.
+
+The frontend communicates with the backend through the **API Gateway**.
+
+```text
+React Frontend -> API Gateway -> Microservices
+```
+
+The Vite development server uses a proxy configuration to redirect these routes to the API Gateway:
+
+```text
+/product -> http://localhost:8088
+/cart    -> http://localhost:8088
+/sales   -> http://localhost:8088
+```
+
+### Requirements
+
+- Node.js
+- npm
+- Backend platform running with Docker Compose
+
+### 1. Start the backend platform
+
+From the `infrastructure` folder:
+
+```cmd
+docker compose up -d --build
+```
+
+### 2. Go to the frontend folder
+
+```cmd
+cd appliance-store-platform\frontend
+```
+
+### 3. Install dependencies
+
+```cmd
+npm install
+```
+
+### 4. Run the frontend
+
+```cmd
+npm run dev
+```
+
+### 5. Open the application
+
+```text
+http://localhost:5173
+```
+
+### Available frontend flow
+
+The frontend allows testing the main business flow:
+
+```text
+1. Create Product
+2. Load Products
+3. Create Cart
+4. Add Product to Cart
+5. Create Sale
+6. Check sale notification in Mailpit
+```
+
+After creating a sale, the notification email can be checked at:
+
+```text
+http://localhost:8025
+```
+
+The frontend is intentionally minimal because the main focus of this project is the backend microservices architecture.
 
 ---
 
@@ -446,7 +571,7 @@ Open phpMyAdmin:
 http://localhost:8085
 ```
 
-After running the Postman complete flow, the following tables can be checked:
+After running the frontend flow or the Postman complete flow, the following tables can be checked:
 
 ```text
 appliance_product_db.products
@@ -475,7 +600,7 @@ Open Mailpit:
 http://localhost:8025
 ```
 
-The sale notification email should be available in the Mailpit inbox.
+The sale notification email should be available in the Mailpit inbox after creating a sale.
 
 ---
 
@@ -858,9 +983,10 @@ When running services manually from IntelliJ, use this startup order:
 6. Sales Service
 7. Notification Service
 8. API Gateway
+9. Frontend Client
 ```
 
-Each main service should run with the `dev` profile when working locally from IntelliJ.
+Each main backend service should run with the `dev` profile when working locally from IntelliJ.
 
 Example environment variables:
 
@@ -868,6 +994,12 @@ Example environment variables:
 SPRING_PROFILES_ACTIVE=dev
 APPLIANCE_DB_USERNAME=appliance_app
 APPLIANCE_DB_PASSWORD=your-local-password
+```
+
+The frontend is started separately from the `frontend` folder using:
+
+```cmd
+npm run dev
 ```
 
 ---
@@ -907,6 +1039,7 @@ These values are examples only. Real credentials must be provided through enviro
 ## Useful URLs
 
 ```text
+Frontend:        http://localhost:5173
 API Gateway:     http://localhost:8088
 Eureka:          http://localhost:8761
 Config Server:   http://localhost:8888
@@ -925,13 +1058,13 @@ From CMD, inside:
 appliance-store-platform\infrastructure
 ```
 
-Start the platform:
+Start the backend platform:
 
 ```cmd
 docker compose up -d --build
 ```
 
-Stop the platform:
+Stop the backend platform:
 
 ```cmd
 docker compose down
@@ -975,6 +1108,40 @@ powershell -Command "Invoke-RestMethod -Uri 'http://localhost:8086/connectors/sa
 
 ---
 
+## Frontend Commands
+
+From CMD, inside:
+
+```text
+appliance-store-platform\frontend
+```
+
+Install dependencies:
+
+```cmd
+npm install
+```
+
+Run development server:
+
+```cmd
+npm run dev
+```
+
+Build frontend:
+
+```cmd
+npm run build
+```
+
+Preview production build:
+
+```cmd
+npm run preview
+```
+
+---
+
 ## Key Learning Goals
 
 This project was built to practice and demonstrate:
@@ -994,6 +1161,7 @@ This project was built to practice and demonstrate:
 - Retries and Dead Letter Topics
 - Environment-specific configuration
 - Dockerized microservices
+- Minimal frontend integration with React and Vite
 - Postman automated flow testing
 
 ---
@@ -1002,7 +1170,7 @@ This project was built to practice and demonstrate:
 
 This project demonstrates how to build a backend system close to a real-world microservices architecture.
 
-It includes synchronous communication with OpenFeign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, API Gateway routing, resilience patterns, Docker-based infrastructure, event-driven processing with Debezium and the Transactional Outbox pattern, email delivery through Mailpit or SMTP, and a Postman collection to validate the complete business flow.
+It includes synchronous communication with OpenFeign, asynchronous communication with Kafka, service discovery with Eureka, centralized configuration with Spring Cloud Config, API Gateway routing, resilience patterns, Docker-based infrastructure, event-driven processing with Debezium and the Transactional Outbox pattern, email delivery through Mailpit or SMTP, a minimal React frontend to validate the purchase flow visually, and a Postman collection to validate the complete business flow.
 
 ---
 
